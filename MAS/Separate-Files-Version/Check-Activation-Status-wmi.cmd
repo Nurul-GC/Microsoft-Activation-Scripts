@@ -67,16 +67,30 @@ set "Path=%SystemRoot%\Sysnative;%SystemRoot%\Sysnative\Wbem;%SystemRoot%\Sysnat
 ::  Check LF line ending
 
 pushd "%~dp0"
->nul findstr /rxc:".*" "%~nx0"
-if not %errorlevel%==0 (
+>nul findstr /v "$" "%~nx0" && (
 echo:
-echo Error: This is not a correct file. It has LF line ending issue.
+echo Error: Script either has LF line ending issue or an empty line at the end of the script is missing.
 echo:
-ping 127.0.0.1 -n 6 > nul
+ping 127.0.0.1 -n 6 >nul
 popd
 exit /b
 )
 popd
+
+set ohook=
+for %%# in (15 16) do (
+for %%A in ("%ProgramFiles%" "%ProgramW6432%" "%ProgramFiles(x86)%") do (
+if exist "%%~A\Microsoft Office\Office%%#\sppc*dll" set ohook=1
+)
+)
+
+for %%# in (System SystemX86) do (
+for %%G in ("Office 15" "Office") do (
+for %%A in ("%ProgramFiles%" "%ProgramW6432%" "%ProgramFiles(x86)%") do (
+if exist "%%~A\Microsoft %%~G\root\vfs\%%#\sppc*dll" set ohook=1
+)
+)
+)
 
 set _cwmi=0
 for %%# in (wmic.exe) do @if not "%%~$PATH:#"=="" (
@@ -85,7 +99,9 @@ wmic path Win32_ComputerSystem get CreationClassName /value 2>nul | find /i "Com
 
 if %_cwmi% EQU 0 (
 echo:
-echo Error: wmic.exe is not responding in the system.
+echo Error: WMI is not responding in the system.
+echo:
+echo In MAS, Goto Troubleshoot and run Fix WMI option.
 echo:
 echo Press any key to exit...
 pause >nul
@@ -151,6 +167,17 @@ for /f "tokens=2 delims==" %%# in ('%_qr%') do (
   call :casWout
   echo %line3%
   echo.
+)
+
+if defined ohook (
+echo.
+echo.
+echo %line2%
+echo ***            Office Ohook Activation Status            ***
+echo %line2%
+echo.
+powershell "write-host -back 'Black' -fore 'Yellow' 'Ohook for permanent Office activation is installed.'; write-host -back 'Black' -fore 'Yellow' 'You can ignore below Office activation status.'"
+echo.
 )
 
 :casWcon
@@ -535,3 +562,4 @@ PrintLicensesInformation -Mode "NUL"
 PrintLicensesInformation -Mode "Device"
 :vNextDiag:
 ::===================================================
+:: Leave empty line below
