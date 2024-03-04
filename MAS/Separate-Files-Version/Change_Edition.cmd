@@ -1,3 +1,4 @@
+@set masver=2.5
 @setlocal DisableDelayedExpansion
 @echo off
 
@@ -92,7 +93,7 @@ popd
 
 cls
 color 07
-title  Change Windows Edition
+title  Change Windows Edition %masver%
 
 set _args=
 set _elev=
@@ -159,7 +160,7 @@ goto ced_done
 
 ::========================================================================================================================================
 
-::  Fix for the special characters limitation in path name
+::  Fix special characters limitation in path name
 
 set "_work=%~dp0"
 if "%_work:~-1%"=="\" set "_work=%_work:~0,-1%"
@@ -169,7 +170,7 @@ set "_batp=%_batf:'=''%"
 
 set _PSarg="""%~f0""" -el %_args%
 
-set "_ttemp=%temp%"
+set "_ttemp=%userprofile%\AppData\Local\Temp"
 
 setlocal EnableDelayedExpansion
 
@@ -193,7 +194,7 @@ goto ced_done
 %nul1% fltmc || (
 if not defined _elev %psc% "start cmd.exe -arg '/c \"!_PSarg:'=''!\"' -verb runas" && exit /b
 %eline%
-echo This script require admin privileges.
+echo This script needs admin rights.
 echo To do so, right click on this script and select 'Run as administrator'.
 goto ced_done
 )
@@ -210,6 +211,32 @@ reg add HKCU\Console /v QuickEdit /t REG_DWORD /d "0" /f %nul1%
 start cmd.exe /c ""!_batf!" %_args% -qedit"
 rem quickedit reset code is added at the starting of the script instead of here because it takes time to reflect in some cases
 exit /b
+)
+
+::========================================================================================================================================
+
+::  Check for updates
+
+set -=
+set old=
+
+for /f "delims=[] tokens=2" %%# in ('ping -4 -n 1 updatecheck.mass%-%grave.dev') do (
+if not [%%#]==[] (echo "%%#" | find "127.69" %nul1% && (echo "%%#" | find "127.69.%masver%" %nul1% || set old=1))
+)
+
+if defined old (
+echo ________________________________________________
+%eline%
+echo You are running outdated version MAS %masver%
+echo ________________________________________________
+echo:
+echo [1] Get Latest MAS
+echo [0] Continue Anyway
+echo:
+call :dk_color %_Green% "Enter a menu option in the Keyboard [1,0] :"
+choice /C:10 /N
+if !errorlevel!==2 rem
+if !errorlevel!==1 (start ht%-%tps://github.com/mass%-%gravel/Microsoft-Acti%-%vation-Scripts & start %mas% & exit /b)
 )
 
 ::========================================================================================================================================
@@ -255,24 +282,7 @@ goto ced_done
 
 ::========================================================================================================================================
 
-::  Check SKU value
-
-set osSKU=
-set slcSKU=
-set wmiSKU=
-
-if %winbuild% GEQ 14393 (set info=Kernel-BrandingInfo) else (set info=Kernel-ProductInfo)
-set d1=%ref% [void]$TypeBuilder.DefinePInvokeMethod('SLGetWindowsInformationDWORD', 'slc.dll', 'Public, Static', 1, [int], @([String], [int].MakeByRefType()), 1, 3);
-set d1=%d1% $Sku = 0; [void]$TypeBuilder.CreateType()::SLGetWindowsInformationDWORD('%info%', [ref]$Sku); $Sku
-for /f "delims=" %%s in ('"%psc% %d1%"') do if not errorlevel 1 (set slcSKU=%%s)
-if "%slcSKU%"=="0" set slcSKU=
-if 1%slcSKU% NEQ +1%slcSKU% set slcSKU=
-
-if %_wmic% EQU 1 for /f "tokens=2 delims==" %%a in ('"wmic Path Win32_OperatingSystem Get OperatingSystemSKU /format:LIST" %nul6%') do if not errorlevel 1 set "wmiSKU=%%a"
-if %_wmic% EQU 0 for /f "tokens=1" %%a in ('%psc% "([WMI]'Win32_OperatingSystem=@').OperatingSystemSKU" %nul6%') do if not errorlevel 1 set "wmiSKU=%%a"
-
-set osSKU=%slcSKU%
-if not defined osSKU set osSKU=%wmiSKU%
+call :dk_checksku
 
 if not defined osSKU (
 %eline%
@@ -297,7 +307,7 @@ if not defined osedition (
 for /f "skip=2 tokens=3" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v EditionID %nul6%') do set "osedition=%%a"
 )
 
-::  Workaround for a Windows bug in builds between 1607 and 1709 where ProfessionalEducation is shown as Professional
+::  Workaround for an issue in builds between 1607 and 1709 where ProfessionalEducation is shown as Professional
 
 if %osSKU%==164 set osedition=ProfessionalEducation
 if %osSKU%==165 set osedition=ProfessionalEducationN
@@ -327,7 +337,10 @@ for /f "skip=2 tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Windows NT
 
 %psc% $ExecutionContext.SessionState.LanguageMode %nul2% | find /i "Full" %nul1% || (
 %eline%
-echo PowerShell is not responding properly. Aborting...
+%psc% $ExecutionContext.SessionState.LanguageMode
+echo:
+echo PowerShell is not working. Aborting...
+echo If you have applied restrictions on Powershell then undo those changes.
 echo:
 echo Check this page for help. %mas%troubleshoot
 goto ced_done
@@ -370,7 +383,7 @@ echo "!_target!" | find /i " %%# " %nul1% || set "_target= !_target! %%# "
 
 if defined _target (
 for %%# in (%_target%) do (
-echo %%# | findstr /i "CountrySpecific CloudEdition" %nul% || (set "_ntarget=!_ntarget! %%#")
+echo %%# | findstr /i "CountrySpecific CloudEdition ServerRdsh" %nul% || (set "_ntarget=!_ntarget! %%#")
 )
 )
 
@@ -462,18 +475,31 @@ goto ced_done
 ::  Changing from Core to Non-Core & Changing editions in Windows build older than 17134 requires "changepk /productkey" or DISM Api method and restart
 ::  In other cases, editions can be changed instantly with "slmgr /ipk"
 
+if %_dismapi%==1 (
+mode con cols=105 lines=40
+%psc% "$f=[io.file]::ReadAllText('!_batp!') -split ':checkrebootflag\:.*';iex ($f[1]);" | find /i "True" %nul% && (
+%eline%
+echo Pending Reboot flags found.
+echo:
+echo Restart the system and try again.
+goto ced_done
+)
+)
+
 cls
 %line%
 echo:
+if defined dismnotworking call :dk_color %_Yellow% "DISM.exe is not responding."
 echo Changing the Current Edition [%osedition%] %winbuild% to [%targetedition%]
 echo:
 
 if %_dismapi%==1 (
-call :dk_color %Blue% "Notes-"
+call :dk_color %Green% "Notes-"
 echo:
 echo  - Save your work before continue, system will auto restart.
 echo:
 echo  - You will need to activate with HWID option once the edition is changed.
+%line%
 echo:
 choice /C:21 /N /M "[1] Continue [2] %_exitmsg% : "
 if !errorlevel!==1 exit /b
@@ -505,13 +531,12 @@ echo Check this page for help. %mas%troubleshoot
 
 if %_dismapi%==1 (
 echo:
-echo Applying the DISM API method with %_chan% Key %key%
+echo Applying the DISM API method with %_chan% Key %key%. Please wait...
 echo:
 %psc% "$f=[io.file]::ReadAllText('!_batp!') -split ':dismapi\:.*';& ([ScriptBlock]::Create($f[1])) %targetedition% %key%;"
 timeout /t 3 %nul1%
 echo:
-call :dk_color %Blue% "Incase of errors, you must restart your system before trying again."
-echo Check this page for help. %mas%troubleshoot
+call :dk_color2 %Blue% "Check this page for help" %_Yellow% " %mas%change_edition_issues"
 )
 %line%
 
@@ -525,7 +550,16 @@ cls
 mode con cols=105 lines=32
 %psc% "&{$W=$Host.UI.RawUI.WindowSize;$B=$Host.UI.RawUI.BufferSize;$W.Height=31;$B.Height=200;$Host.UI.RawUI.WindowSize=$W;$Host.UI.RawUI.BufferSize=$B;}"
 
+REM %psc% "$f=[io.file]::ReadAllText('!_batp!') -split ':checkrebootflag\:.*';iex ($f[1]);" | find /i "True" %nul% && (
+REM %eline%
+REM echo Pending reboot flags found.
+REM echo:
+REM echo Restart the system and try again.
+REM goto ced_done
+REM )
+
 echo:
+if defined dismnotworking call :dk_color %_Yellow% "Note - DISM.exe is not responding."
 echo Changing the Current Edition [%osedition%] %winbuild% to [%targetedition%]
 echo:
 call :dk_color %Blue% "Important - Save your work before continue, system will auto reboot."
@@ -574,8 +608,17 @@ goto ced_done
 
 ::========================================================================================================================================
 
+%psc% "$f=[io.file]::ReadAllText('!_batp!') -split ':checkrebootflag\:.*';iex ($f[1]);" | find /i "True" %nul% && (
+%eline%
+echo Pending reboot flags found.
+echo:
+echo Restart the system and try again.
+goto ced_done
+)
+
 cls
 echo:
+if defined dismnotworking call :dk_color %_Yellow% "Note - DISM.exe is not responding."
 echo Changing the Current Edition [%osedition%] %winbuild% to [%targetedition%]
 echo:
 echo Applying the command with %_chan% Key
@@ -595,6 +638,31 @@ pause %nul1%
 exit /b
 
 ::========================================================================================================================================
+
+::  Check SKU value
+
+:dk_checksku
+
+set osSKU=
+set slcSKU=
+set wmiSKU=
+set regSKU=
+
+if %winbuild% GEQ 14393 (set info=Kernel-BrandingInfo) else (set info=Kernel-ProductInfo)
+set d1=%ref% [void]$TypeBuilder.DefinePInvokeMethod('SLGetWindowsInformationDWORD', 'slc.dll', 'Public, Static', 1, [int], @([String], [int].MakeByRefType()), 1, 3);
+set d1=%d1% $Sku = 0; [void]$TypeBuilder.CreateType()::SLGetWindowsInformationDWORD('%info%', [ref]$Sku); $Sku
+for /f "delims=" %%s in ('"%psc% %d1%"') do if not errorlevel 1 (set slcSKU=%%s)
+if "%slcSKU%"=="0" set slcSKU=
+if 1%slcSKU% NEQ +1%slcSKU% set slcSKU=
+
+for /f "tokens=3 delims=." %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\ProductOptions" /v OSProductPfn %nul6%') do set "regSKU=%%a"
+if %_wmic% EQU 1 for /f "tokens=2 delims==" %%a in ('"wmic Path Win32_OperatingSystem Get OperatingSystemSKU /format:LIST" %nul6%') do if not errorlevel 1 set "wmiSKU=%%a"
+if %_wmic% EQU 0 for /f "tokens=1" %%a in ('%psc% "([WMI]'Win32_OperatingSystem=@').OperatingSystemSKU" %nul6%') do if not errorlevel 1 set "wmiSKU=%%a"
+
+set osSKU=%slcSKU%
+if not defined osSKU set osSKU=%wmiSKU%
+if not defined osSKU set osSKU=%regSKU%
+exit /b
 
 ::  Refresh license status
 
@@ -620,7 +688,11 @@ exit /b
 
 if %_wmic% EQU 1 set "chkedi=for /f "tokens=2 delims==" %%a in ('"wmic path SoftwareLicensingProduct where (ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f') get LicenseFamily /VALUE" %nul6%')"
 if %_wmic% EQU 0 set "chkedi=for /f "tokens=2 delims==" %%a in ('%psc% "(([WMISEARCHER]'SELECT LicenseFamily FROM SoftwareLicensingProduct WHERE ApplicationID=''55c92734-d682-4d71-983e-d6ec3f16059f''').Get()).LicenseFamily ^| %% {echo ('LicenseFamily='+$_)}" %nul6%')"
-%chkedi% do (call set "_wtarget= !_wtarget! %%a ")
+%chkedi% do (
+call if exist %Systemdrive%\Windows\System32\spp\tokens\skus\%%a (
+call set "_wtarget= !_wtarget! %%a "
+)
+)
 exit /b
 
 ::  Check wmic.exe
@@ -660,6 +732,29 @@ set ref=$AssemblyBuilder = [AppDomain]::CurrentDomain.DefineDynamicAssembly(4, 1
 set ref=%ref% $ModuleBuilder = $AssemblyBuilder.DefineDynamicModule(2, $False);
 set ref=%ref% $TypeBuilder = $ModuleBuilder.DefineType(0);
 exit /b
+
+::========================================================================================================================================
+
+::  Check pending reboot flags
+
+:checkrebootflag:
+function Test-PendingReboot
+{
+ if (Test-Path -Path "$env:windir\WinSxS\pending.xml") { return $true }
+ if (Get-ChildItem "HKLM:\Software\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending" -EA SilentlyContinue) { return $true }
+ if (Get-Item "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired" -EA SilentlyContinue) { return $true }
+ try { 
+   $util = [wmiclass]"\\.\root\ccm\clientsdk:CCM_ClientUtilities"
+   $status = $util.DetermineIfRebootPending()
+   if(($status -ne $null) -and $status.RebootPending){
+     return $true
+   }
+ }catch{}
+ 
+ return $false
+}
+Test-PendingReboot
+:checkrebootflag:
 
 ::========================================================================================================================================
 

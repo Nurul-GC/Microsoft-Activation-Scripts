@@ -1,10 +1,9 @@
-<!-- : Begin batch script
 @setlocal DisableDelayedExpansion
 @echo off
 
 
 
-::  Check-Activation-Status-wmi.cmd
+::  Check-Activation-Status
 ::  Written by @abbodi1406
 ::  forums.mydigitallife.net/posts/838808
 
@@ -363,7 +362,7 @@ if defined DiscoveredKeyManagementServiceMachineIpAddress echo.    KMS machine I
 echo.    KMS machine extended PID: %KeyManagementServiceProductKeyID%
 echo.    Activation interval: %VLActivationInterval% minutes
 echo.    Renewal interval: %VLRenewalInterval% minutes
-echo.    KMS host caching: %KeyManagementServiceHostCaching%
+echo.    K.M.S host caching: %KeyManagementServiceHostCaching%
 if defined KeyManagementServiceLookupDomain echo.    KMS SRV record lookup domain: %KeyManagementServiceLookupDomain%
 if defined ExpireMsg echo.&echo.    %ExpireMsg%
 exit /b
